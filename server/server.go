@@ -35,21 +35,21 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// upgrade initial HTTP connection to a WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Error upgrading connection:", err)
+		fmt.Println("[ERROR] Upgrading connection:", err)
 		return
 	}
 	defer conn.Close() // ensure connection is closed when function exits
 
 	// new connection established
 	sockConnections[conn] = true
-	fmt.Println("New websocket connection established!")
+	fmt.Println("[HANDSHAKE] New websocket connection established!")
 
 	for {
 		// read message from client
 		var cMessage Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
-			fmt.Println("Client closed, closing connection...")
+			fmt.Println("[CLOSING] Client closed, closing connection.")
 			delete(sockConnections, conn)
 			break
 		}
@@ -62,12 +62,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleMessage() {
 	for {
 		cMessage := <-chatRoom
-		fmt.Printf("[%s] %s\n", cMessage.Username, cMessage.Text)
+		fmt.Printf("[CH][%s] %s\n", cMessage.Username, cMessage.Text)
 
 		for conn := range sockConnections {
 			err := conn.WriteJSON(cMessage)
 			if err != nil {
-				log.Println("Error sending message, closing connection...", err)
+				fmt.Println("[ERROR] Sending message, closing connection.", err)
 				conn.Close()
 				delete(sockConnections, conn)
 			}

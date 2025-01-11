@@ -44,19 +44,19 @@ func main() {
 		Path:   *path,
 	}
 
-	fmt.Print("Username: ")
+	fmt.Print("[INPUT] Username: ")
 	scanner = bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	uname = scanner.Text()
 
 	// app interface
-	fmt.Println("Welcome", uname)
+	fmt.Printf("Welcome to Chat App %s!\n", uname)
 	fmt.Printf("Connecting to server @ %s...\n", *server)
 
 	// connecting to the server
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL.String(), nil)
 	if err != nil {
-		log.Fatal("Connection error, closing connection...", err)
+		log.Fatal("Connection error:", err)
 	}
 	defer conn.Close()
 
@@ -77,11 +77,11 @@ func handleReceiveMessage(conn ConnectionReader) {
 
 		err := conn.ReadJSON(&sMessage)
 		if err != nil {
-			fmt.Println("Server closed, exiting...")
+			fmt.Println("[SERVER] Server closed, exiting...")
 			os.Exit(0)
 		}
 
-		fmt.Printf("[%s] %s\n", sMessage.Username, sMessage.Text)
+		fmt.Printf("[CH][%s] %s\n", sMessage.Username, sMessage.Text)
 	}
 }
 
@@ -103,11 +103,11 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
 				os.Exit(0)
 			}
 
-			fmt.Printf("[%s] %s\n", cMessage.Username, cMessage.Text)
+			fmt.Printf("[SENDING][%s] %s\n", cMessage.Username, cMessage.Text)
 
 			err := conn.WriteJSON(cMessage)
 			if err != nil {
-				log.Fatal("Error sending message, clossing connection...", err)
+				fmt.Printf("[ERROR] Sending message, clossing connection...", err)
 				break
 			}
 		}
