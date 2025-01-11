@@ -2,60 +2,114 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"log"
+	"net/url"
 	"os"
 
 	"github.com/gorilla/websocket"
 )
 
+type ConnectionReader interface {
+	ReadJSON(v interface{}) error
+}
 
-func main() {	
-	// try to connect to websocket server 
-	serverURL := "ws://localhost:8080/ws"
-	
-	conn, _, err := websocket.DefaultDialer.Dial(serverURL, nil)
+type ConnectionWriter interface {
+	WriteJSON(v interface{}) error
+	Close() error
+}
+
+type Scanner interface {
+	Scan() bool
+	Text() string
+}
+
+type Message struct {
+	Username string `json:"username"`
+	Text     string `json:"Text"`
+}
+
+func main() {
+	var uname string           // declare username given by user
+	var scanner *bufio.Scanner // declare scanner to read user input
+
+	// provider custom address and port CLI
+	server := flag.String("server", "localhost:8080", "server network address")
+	path := flag.String("path", "/ws", "websocket path")
+	flag.Parse()
+	serverURL := url.URL{
+		Scheme: "ws",
+		Host:   *server,
+		Path:   *path,
+	}
+
+	fmt.Print("Username: ")
+	scanner = bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	uname = scanner.Text()
+
+	// app interface
+	fmt.Println("Welcome", uname)
+	fmt.Printf("Connecting to server @ %s...\n", *server)
+
+	// connecting to the server
+	conn, _, err := websocket.DefaultDialer.Dial(serverURL.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to connect to server: ", err)	
+		log.Fatal("Connection error, closing connection...", err)
 	}
 	defer conn.Close()
 
-	fmt.Println("Connected to WebSocket server!")
+	// notify new client connected
+	cMessage := Message{
+		Username: uname,
+		Text:     "has joined the chat.",
+	}
+	conn.WriteJSON(cMessage)
 
-	ch := make(chan string)
-	go func() {
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				fmt.Println("Error reading from server: ", err)
-				close(ch)
-				return
-			}
-			ch <- string(message)
-		}
-	}()
+	go handleReceiveMessage(conn)
+	handleSendMessage(conn, scanner, uname)
+}
 
-	scanner := bufio.NewScanner(os.Stdin)
+func handleReceiveMessage(conn ConnectionReader) {
 	for {
-		serverMsg := <-ch
-		fmt.Println("Message from server:", serverMsg)
-		
-		fmt.Println("Type your message and press Enter to send: ")
+		var sMessage Message
 
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			break
-		}
-
-		text := scanner.Text()
-		if text == "exit" {
-			fmt.Println("Exiting...")
-			break
-		}
-
-		err := conn.WriteMessage(websocket.TextMessage, []byte(text))
+		err := conn.ReadJSON(&sMessage)
 		if err != nil {
-			fmt.Println("Error sending message: ", err)
-			break
+			fmt.Println("Server closed, exiting...")
+			os.Exit(0)
+		}
+
+		fmt.Printf("[%s] %s\n", sMessage.Username, sMessage.Text)
+	}
+}
+
+func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
+	var cMessage Message
+	cMessage.Username = uname
+
+	for {
+		if scanner.Scan() {
+			cMessage.Text = scanner.Text()
+
+			if cMessage.Text == "exit" {
+				fmt.Println("You're leaving chat room...")
+				conn.WriteJSON(Message{
+					Username: uname,
+					Text:     "has disconnected.",
+				})
+				conn.Close()
+				os.Exit(0)
+			}
+
+			fmt.Printf("[%s] %s\n", cMessage.Username, cMessage.Text)
+
+			err := conn.WriteJSON(cMessage)
+			if err != nil {
+				log.Fatal("Error sending message, clossing connection...", err)
+				break
+			}
 		}
 	}
 }

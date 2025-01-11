@@ -49,7 +49,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		var cMessage Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
-			log.Println("Error reading message, closing connection...", err)
+			fmt.Println("Client closed, closing connection...")
 			delete(sockConnections, conn)
 			break
 		}
@@ -62,7 +62,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleMessage() {
 	for {
 		cMessage := <-chatRoom
-		fmt.Printf("[ %s ] %s\n", cMessage.Username, cMessage.Text)
+		fmt.Printf("[%s] %s\n", cMessage.Username, cMessage.Text)
 
 		for conn := range sockConnections {
 			err := conn.WriteJSON(cMessage)
