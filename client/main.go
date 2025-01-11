@@ -44,6 +44,7 @@ func main() {
 		Path:   *path,
 	}
 
+	// login & register 
 	fmt.Print("[INPUT] Username: ")
 	scanner = bufio.NewScanner(os.Stdin)
 	scanner.Scan()
@@ -51,7 +52,7 @@ func main() {
 
 	// app interface
 	fmt.Printf("Welcome to Chat App %s!\n", uname)
-	fmt.Printf("Connecting to server @ %s...\n", *server)
+	fmt.Printf("Connecting to server @ %s\n", *server)
 
 	// connecting to the server
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL.String(), nil)
@@ -77,7 +78,7 @@ func handleReceiveMessage(conn ConnectionReader) {
 
 		err := conn.ReadJSON(&sMessage)
 		if err != nil {
-			fmt.Println("[SERVER] Server closed, exiting...")
+			fmt.Println("[SERVER] Server closed, exiting.")
 			os.Exit(0)
 		}
 
@@ -94,7 +95,7 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
 			cMessage.Text = scanner.Text()
 
 			if cMessage.Text == "exit" {
-				fmt.Println("You're leaving chat room...")
+				fmt.Println("You're leaving chat room.")
 				conn.WriteJSON(Message{
 					Username: uname,
 					Text:     "has disconnected.",
@@ -107,7 +108,7 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
 
 			err := conn.WriteJSON(cMessage)
 			if err != nil {
-				fmt.Printf("[ERROR] Sending message, clossing connection...", err)
+				fmt.Println("[ERROR] Sending message, clossing connection.", err)
 				break
 			}
 		}

@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gorilla/websocket"
+	"github.com/sivaren/go-cli-chat-app/database"
 )
 
 // declare Message struct
 type Message struct {
 	Username string `json:"username"`
 	Text     string `json:"text"`
+	Type     string `json:"type"`
 }
 
 // initialize websocket upgrader : upgrade http to websocket connection
@@ -84,9 +88,18 @@ func main() {
 
 	go handleMessage() // handle incoming messages concurrently
 
+	// loading data
+	cwd, errCWD := os.Getwd()
+	if errCWD != nil {
+		fmt.Println("Error getting CWD: ", errCWD)
+	}
+	usersFilePath := filepath.Join(cwd, "database", "data", "users.json")
+	users := database.ReadUsersFromFile(usersFilePath)
+	database.WriteUsersToFile(usersFilePath, users)
+
 	fmt.Println("WebSocket server started on port", *port)
-	err := http.ListenAndServe(*port, nil)
-	if err != nil {
+
+	if err := http.ListenAndServe(*port, nil); err != nil {
 		log.Fatal("Error starting server:", err)
 	}
 }
