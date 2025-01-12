@@ -9,14 +9,16 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/websocket"
+	"github.com/sivaren/go-cli-chat-app/auth"
 	"github.com/sivaren/go-cli-chat-app/database"
 )
 
 // declare Message struct
 type Message struct {
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
+	Connection *websocket.Conn `json:"connection"`
+	Username   string          `json:"username"`
+	Text       string          `json:"text"`
+	Type       string          `json:"type"`
 }
 
 // initialize websocket upgrader : upgrade http to websocket connection
@@ -29,10 +31,13 @@ var upgrader = websocket.Upgrader{
 }
 
 // declare mapping(connection => bool) to track open connection
-var sockConnections = make(map[*websocket.Conn]bool)
+var sockConnections = make(map[*websocket.Conn]int)
 
 // declare channel (chat room) to digest messages concurrently
 var chatRoom = make(chan Message)
+
+// declare variables for database
+var users map[string]string
 
 // handle websocket connection
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -45,20 +50,21 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close() // ensure connection is closed when function exits
 
 	// new connection established
-	sockConnections[conn] = true
-	fmt.Println("[HANDSHAKE] New websocket connection established!")
+	sockConnections[conn] = len(sockConnections) + 1
+	fmt.Printf("[HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn])
 
 	for {
 		// read message from client
 		var cMessage Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
-			fmt.Println("[CLOSING] Client closed, closing connection.")
+			fmt.Printf("[CLOSING] Client ID=%v closed, closing connection.\n", sockConnections[conn])
 			delete(sockConnections, conn)
 			break
 		}
 
 		// send message to the chat room to be handled concurrently
+		cMessage.Connection = conn
 		chatRoom <- cMessage
 	}
 }
@@ -66,14 +72,35 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleMessage() {
 	for {
 		cMessage := <-chatRoom
-		fmt.Printf("[CH][%s] %s\n", cMessage.Username, cMessage.Text)
+		if cMessage.Type == "Login" {
+			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
+			if isAuth {
+				sMessage := Message{
+					Username: cMessage.Username,
+					Text:     "Login successful!",
+					Type:     "Login",
+				}
 
-		for conn := range sockConnections {
-			err := conn.WriteJSON(cMessage)
-			if err != nil {
-				fmt.Println("[ERROR] Sending message, closing connection.", err)
-				conn.Close()
-				delete(sockConnections, conn)
+				fmt.Printf("[LOGIN] %s successful!\n", cMessage.Username)
+				err := cMessage.Connection.WriteJSON(sMessage)
+				if err != nil {
+					fmt.Println("[ERROR] Sending message, closing connection.", err)
+					cMessage.Connection.Close()
+					delete(sockConnections, cMessage.Connection)
+				}
+			}
+		} else {
+			fmt.Printf("[CH][%s] %s\n", cMessage.Username, cMessage.Text)
+	
+			for conn := range sockConnections {
+				if conn != cMessage.Connection {
+					err := conn.WriteJSON(cMessage)
+					if err != nil {
+						fmt.Println("[ERROR] Sending message, closing connection.", err)
+						conn.Close()
+						delete(sockConnections, conn)
+					}
+				}
 			}
 		}
 	}
@@ -94,8 +121,7 @@ func main() {
 		fmt.Println("Error getting CWD: ", errCWD)
 	}
 	usersFilePath := filepath.Join(cwd, "database", "data", "users.json")
-	users := database.ReadUsersFromFile(usersFilePath)
-	database.WriteUsersToFile(usersFilePath, users)
+	users = database.ReadUsersFromFile(usersFilePath)
 
 	fmt.Println("WebSocket server started on port", *port)
 
