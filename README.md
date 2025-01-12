@@ -30,6 +30,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
 ```
 
 ## Run Program
+
 ### Using Command-line
 * Open `cmd` on this folder and download dependencies
 
