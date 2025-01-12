@@ -58,7 +58,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
     </tr>
     <tr>
       <td>Direct Message</td>
-      <td>Not Implemented</td>
+      <td>Implemented</td>
     </tr>
     <tr>
       <td>User Authentication</td>
