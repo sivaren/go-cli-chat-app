@@ -38,6 +38,7 @@ var chatRoom = make(chan Message)
 
 // declare variables for database
 var users map[string]string
+var usersFilePath string
 
 // handle websocket connection
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -72,26 +73,52 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleMessage() {
 	for {
 		cMessage := <-chatRoom
+
+		var sMessage Message
+		sMessage.Username = cMessage.Username
+		sMessage.Type = cMessage.Type
+
 		if cMessage.Type == "Login" {
 			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
 			if isAuth {
-				sMessage := Message{
-					Username: cMessage.Username,
-					Text:     "Login successful!",
-					Type:     "Login",
-				}
+				sMessage.Text = "Login successful!"
+				fmt.Printf("[LOGIN] @%s successful!\n", cMessage.Username)
 
-				fmt.Printf("[LOGIN] %s successful!\n", cMessage.Username)
 				err := cMessage.Connection.WriteJSON(sMessage)
 				if err != nil {
 					fmt.Println("[ERROR] Sending message, closing connection.", err)
 					cMessage.Connection.Close()
 					delete(sockConnections, cMessage.Connection)
 				}
+			} else {
+				sMessage.Text = "Login invalid!"
+				fmt.Printf("[LOGIN] @%s invalid!\n", cMessage.Username)
+
+				err := cMessage.Connection.WriteJSON(sMessage)
+				if err != nil {
+					fmt.Println("[ERROR] Sending message, closing connection.", err)
+					cMessage.Connection.Close()
+					delete(sockConnections, cMessage.Connection)
+				}
+				cMessage.Connection.Close()
+				delete(sockConnections, cMessage.Connection)
+			}
+		} else if cMessage.Type == "Register" {
+			users[cMessage.Username] = cMessage.Text
+			database.WriteUsersToFile(usersFilePath, users)
+
+			sMessage.Text = "Account registered!"
+			fmt.Printf("[REGISTER] Account @%s registered!\n", cMessage.Username)
+
+			err := cMessage.Connection.WriteJSON(sMessage)
+			if err != nil {
+				fmt.Println("[ERROR] Sending message, closing connection.", err)
+				cMessage.Connection.Close()
+				delete(sockConnections, cMessage.Connection)
 			}
 		} else {
-			fmt.Printf("[CH][%s] %s\n", cMessage.Username, cMessage.Text)
-	
+			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
+
 			for conn := range sockConnections {
 				if conn != cMessage.Connection {
 					err := conn.WriteJSON(cMessage)
@@ -120,7 +147,7 @@ func main() {
 	if errCWD != nil {
 		fmt.Println("Error getting CWD: ", errCWD)
 	}
-	usersFilePath := filepath.Join(cwd, "database", "data", "users.json")
+	usersFilePath = filepath.Join(cwd, "database", "data", "users.json")
 	users = database.ReadUsersFromFile(usersFilePath)
 
 	fmt.Println("WebSocket server started on port", *port)

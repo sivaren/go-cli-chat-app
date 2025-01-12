@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/gorilla/websocket"
+	"github.com/sivaren/go-cli-chat-app/auth"
 )
 
 type ConnectionReader interface {
@@ -31,6 +32,8 @@ type Message struct {
 	Text       string          `json:"text"`
 	Type       string          `json:"type"`
 }
+
+var menuOption string
 
 func main() {
 	var username string        // declare username given by user
@@ -57,21 +60,48 @@ func main() {
 	defer conn.Close()
 	fmt.Println("[>] Connected to the server.")
 
-	// login & register
-	fmt.Print("[>][INPUT] Username: ")
+	fmt.Println("[>] Choose Menu | type the option number:")
+	fmt.Println("[>] 1. Login")
+	fmt.Println("[>] 2. Register")
+	fmt.Print("[>][INPUT] Menu Option: ")
 	scanner.Scan()
-	username = scanner.Text()
-	fmt.Print("[>][INPUT] Password: ")
-	scanner.Scan()
-	password = scanner.Text()
+	menuOption = scanner.Text()
 
-	// send user validation to server
-	cMessage := Message{
-		Username: username,
-		Text:     password,
-		Type:     "Login",
+	if menuOption == "1" {
+		// login
+		fmt.Print("[>][INPUT] Username: ")
+		scanner.Scan()
+		username = scanner.Text()
+		fmt.Print("[>][INPUT] Password: ")
+		scanner.Scan()
+		password = scanner.Text()
+
+		// send user validation to server
+		cMessage := Message{
+			Username: username,
+			Text:     password,
+			Type:     "Login",
+		}
+		conn.WriteJSON(cMessage)
+	} else {
+		// register
+		fmt.Print("[>][INPUT] Username: ")
+		scanner.Scan()
+		username = scanner.Text()
+		fmt.Print("[>][INPUT] Password: ")
+		scanner.Scan()
+		password = scanner.Text()
+
+		hashedPassword, _ := auth.HashPassword(password)
+
+		// send user validation to server
+		cMessage := Message{
+			Username: username,
+			Text:     hashedPassword,
+			Type:     "Register",
+		}
+		conn.WriteJSON(cMessage)
 	}
-	conn.WriteJSON(cMessage)
 
 	// app interface
 	// fmt.Printf("Welcome to Chat App %s!\n", username)
@@ -91,10 +121,12 @@ func handleReceiveMessage(conn ConnectionReader) {
 			os.Exit(0)
 		}
 
-		if sMessage.Type == "Login" {
+		if sMessage.Type == "Login"{
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
-		} else {
-			fmt.Printf("[CH][%s] %s\n", sMessage.Username, sMessage.Text)
+		} else if sMessage.Type == "Register" {
+			fmt.Printf("[SERVER] %s\n", sMessage.Text)
+		}else {
+			fmt.Printf("[CH][@%s] %s\n", sMessage.Username, sMessage.Text)
 		}
 	}
 }
@@ -117,7 +149,7 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
 				os.Exit(0)
 			}
 
-			fmt.Printf("[CH][%s] %s\n", cMessage.Username, cMessage.Text)
+			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
 
 			err := conn.WriteJSON(cMessage)
 			if err != nil {
