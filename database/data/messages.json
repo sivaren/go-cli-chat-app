@@ -3,28 +3,14 @@
     "username": "rava",
     "receiver": "",
     "text": "attar",
-    "type": "Login",
-    "timestamp": "2025-01-12T19:03:09.0653897+07:00"
-  },
-  {
-    "username": "rava",
-    "receiver": "",
-    "text": "hai there",
-    "type": "",
-    "timestamp": "2025-01-12T19:03:33.8128672+07:00"
+    "type": "LOGIN",
+    "timestamp": "2025-01-12T19:52:27.6015748+07:00"
   },
   {
     "username": "sivaren",
     "receiver": "",
-    "text": "$2a$10$5mR.kW.49i7P811A5TkuTuykT1W03vcn2FGiiUu3jd7XRgDxm1o36",
-    "type": "REGISTER",
-    "timestamp": "2025-01-12T19:05:55.6791497+07:00"
-  },
-  {
-    "username": "sivaren",
-    "receiver": "",
-    "text": "hai there",
-    "type": "",
-    "timestamp": "2025-01-12T19:06:09.6685539+07:00"
+    "text": "sivaren",
+    "type": "LOGIN",
+    "timestamp": "2025-01-12T19:55:22.7966989+07:00"
   }
 ]

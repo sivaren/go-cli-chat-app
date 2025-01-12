@@ -53,14 +53,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 	// new connection established
 	sockConnections[conn] = len(sockConnections) + 1
-	fmt.Printf("[HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn])
+	fmt.Printf("[ID=%v][HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn], sockConnections[conn])
 
 	for {
 		// read message from client
 		var cMessage models.Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
-			fmt.Printf("[CLOSING] Client ID=%v closed, closing connection.\n", sockConnections[conn])
+			fmt.Printf("[ID=%v][CLOSING] Client ID=%v closed, closing connection.\n", sockConnections[conn], sockConnections[conn])
 			delete(sockConnections, conn)
 			break
 		}
@@ -87,13 +87,13 @@ func handleMessage() {
 		var sMessage models.Message
 		sMessage.Username = cMessage.Username
 		sMessage.Type = cMessage.Type
-		sMessage.Timestamp = cMessage.Timestamp
+		sMessage.Timestamp = time.Now()
 
 		if cMessage.Type == "LOGIN" {
 			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
 			if isAuth {
 				sMessage.Text = "Login successful!"
-				fmt.Printf("[LOGIN] @%s successful!\n", cMessage.Username)
+				fmt.Printf("[ID=%v][LOGIN] @%s successful!\n", sockConnections[connection], cMessage.Username)
 
 				err := connection.WriteJSON(sMessage)
 				if err != nil {
@@ -101,6 +101,14 @@ func handleMessage() {
 					connection.Close()
 					delete(sockConnections, connection)
 				}
+
+				// broadcast to room chat user has joined
+				broadcastMsg := models.Message{
+					Text: fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
+					Type: "BROADCAST",
+					Timestamp: time.Now(),
+				}
+				sendBroadcast(connection, broadcastMsg)
 			} else {
 				sMessage.Text = "Login invalid!"
 				fmt.Printf("[LOGIN] @%s invalid!\n", cMessage.Username)
@@ -119,7 +127,7 @@ func handleMessage() {
 			database.WriteUsersToFile(usersFilePath, users)
 
 			sMessage.Text = "Account registered!"
-			fmt.Printf("[REGISTER] Account @%s registered!\n", cMessage.Username)
+			fmt.Printf("[ID=%v][REGISTER] Account @%s registered!\n", sockConnections[connection], cMessage.Username)
 
 			err := connection.WriteJSON(sMessage)
 			if err != nil {
@@ -127,18 +135,42 @@ func handleMessage() {
 				connection.Close()
 				delete(sockConnections, connection)
 			}
-		} else {
-			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
 
-			for conn := range sockConnections {
-				if conn != connection {
-					err := conn.WriteJSON(cMessage)
-					if err != nil {
-						fmt.Println("[ERROR] Sending message, closing connection.", err)
-						conn.Close()
-						delete(sockConnections, conn)
-					}
+			// broadcast to room chat user has joined
+			broadcastMsg := models.Message{
+				Text: fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
+				Type: "BROADCAST",
+				Timestamp: time.Now(),
+			}
+			sendBroadcast(connection, broadcastMsg)
+		} else if cMessage.Type == "ROOM_CHAT" {
+			fmt.Printf("[ID=%v][CH][@%s] %s\n", sockConnections[connection], cMessage.Username, cMessage.Text)
+
+			// broadcast message to room chat
+			sendBroadcast(connection, cMessage)
+		}
+	}
+}
+
+func sendBroadcast(connection *websocket.Conn, message models.Message) {
+	if message.Type == "ROOM_CHAT" {
+		for conn := range sockConnections {
+			if conn != connection {
+				err := conn.WriteJSON(message)
+				if err != nil {
+					fmt.Println("[ERROR] Sending message, closing connection.", err)
+					conn.Close()
+					delete(sockConnections, conn)
 				}
+			}
+		}
+	} else {
+		for conn := range sockConnections {
+			err := conn.WriteJSON(message)
+			if err != nil {
+				fmt.Println("[ERROR] Sending message, closing connection.", err)
+				conn.Close()
+				delete(sockConnections, conn)
 			}
 		}
 	}

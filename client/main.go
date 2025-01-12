@@ -125,8 +125,10 @@ func handleReceiveMessage(conn ConnectionReader) {
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
 		} else if sMessage.Type == "REGISTER" {
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
-		}else {
+		} else if sMessage.Type == "ROOM_CHAT" {
 			fmt.Printf("[CH][@%s] %s\n", sMessage.Username, sMessage.Text)
+		} else if sMessage.Type == "BROADCAST" {
+			fmt.Printf("[SERVER] %s\n", sMessage.Text)
 		}
 	}
 }
@@ -149,6 +151,7 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, uname string) {
 				os.Exit(0)
 			}
 
+			cMessage.Type = "ROOM_CHAT"
 			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
 
 			err := conn.WriteJSON(cMessage)
