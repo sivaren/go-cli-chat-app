@@ -62,7 +62,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
   ```
 
 ## Project Status
-> **Project is: _DO_**
+> **Project is: DONE _(not fully implemented)_**
 
 ## Functionality
 <table>
