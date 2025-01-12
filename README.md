@@ -66,41 +66,13 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
 > **Project is: DONE _(not fully implemented)_**
 
 ## Functionality
-<table>
-    <tr>
-      <td><b>Use Case</b></td>
-      <td><b>Status</b></td>
-    </tr>
-    <tr>
-      <td>Broadcast Message</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>Direct Message</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>User Authentication</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>User Join and Leave Chat Room</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>Users Create Chat Rooms</td>
-      <td>Not Implemented</td>
-    </tr>
-    <tr>
-      <td>Store Messages</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>Error Handling</td>
-      <td>Implemented</td>
-    </tr>
-    <tr>
-      <td>Docker</td>
-      <td>Implemented</td>
-    </tr>
-</table>
+| Use Case                      | Status              |
+|-------------------------------|---------------------|
+| Broadcast Message             | `Implemented`       |
+| Direct Message (DM)           | `Implemented`       |
+| User Autehntication           | `Implemented`       |
+| User Join and Leave Chat Room | `Implemented`       |
+| Users Create Chat Rooms       | `Not Implemented`   |
+| Store Messages                | `Implemented`       |
+| Error Handling                | `Implemented`       |
+| Docker                        | `Implemented`       |
