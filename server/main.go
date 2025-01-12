@@ -104,8 +104,8 @@ func handleMessage() {
 
 				// broadcast to room chat user has joined
 				broadcastMsg := models.Message{
-					Text: fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
-					Type: "BROADCAST",
+					Text:      fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
+					Type:      "BROADCAST",
 					Timestamp: time.Now(),
 				}
 				sendBroadcast(connection, broadcastMsg)
@@ -138,8 +138,8 @@ func handleMessage() {
 
 			// broadcast to room chat user has joined
 			broadcastMsg := models.Message{
-				Text: fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
-				Type: "BROADCAST",
+				Text:      fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
+				Type:      "BROADCAST",
 				Timestamp: time.Now(),
 			}
 			sendBroadcast(connection, broadcastMsg)
@@ -148,6 +148,18 @@ func handleMessage() {
 
 			// broadcast message to room chat
 			sendBroadcast(connection, cMessage)
+		} else if cMessage.Type == "EXIT" {
+			fmt.Printf("[ID=%v][CH] @%s Leaving chat room.\n", sockConnections[connection], cMessage.Username)
+			connection.Close()
+			delete(sockConnections, connection)
+
+			// broadcast message to room chat
+			broadcastMsg := models.Message{
+				Text:      fmt.Sprintf("@%s has left the chat!", cMessage.Username),
+				Type:      "BROADCAST",
+				Timestamp: time.Now(),
+			}
+			sendBroadcast(connection, broadcastMsg)
 		}
 	}
 }
