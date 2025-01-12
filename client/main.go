@@ -80,7 +80,7 @@ func main() {
 		cMessage := Message{
 			Username: username,
 			Text:     password,
-			Type:     "Login",
+			Type:     "LOGIN",
 		}
 		conn.WriteJSON(cMessage)
 	} else {
@@ -98,7 +98,7 @@ func main() {
 		cMessage := Message{
 			Username: username,
 			Text:     hashedPassword,
-			Type:     "Register",
+			Type:     "REGISTER",
 		}
 		conn.WriteJSON(cMessage)
 	}
@@ -121,9 +121,9 @@ func handleReceiveMessage(conn ConnectionReader) {
 			os.Exit(0)
 		}
 
-		if sMessage.Type == "Login"{
+		if sMessage.Type == "LOGIN"{
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
-		} else if sMessage.Type == "Register" {
+		} else if sMessage.Type == "REGISTER" {
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
 		}else {
 			fmt.Printf("[CH][@%s] %s\n", sMessage.Username, sMessage.Text)

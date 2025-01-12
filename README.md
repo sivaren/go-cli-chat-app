@@ -16,7 +16,8 @@ Go Chat CLI-based Application
 
 ## Requirements 
 * Go
-* Gorilla Websocket
+* github.com/gorilla/websocket
+* golang.org/x/crypto
 
 ## Prerequisites
 > **Ensure that you're in the `main` branch** </br>

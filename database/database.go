@@ -32,17 +32,6 @@ func ReadMessagesFromFile(filePath string) []models.Message {
 	return messages
 }
 
-func WriteMessagesToFile(filePath string, messages []models.Message) {
-	data, err := json.MarshalIndent(messages, "", "  ")
-	if err != nil {
-		fmt.Println("Error encoding JSON data:", err)
-	}
-
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		fmt.Println("Error writing file:", err)
-	}
-}
-
 func ReadUsersFromFile(filePath string) map[string]string {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -64,6 +53,17 @@ func ReadUsersFromFile(filePath string) map[string]string {
 	}
 
 	return users
+}
+
+func WriteMessagesToFile(filePath string, messages []models.Message) {
+	data, err := json.MarshalIndent(messages, "", "  ")
+	if err != nil {
+		fmt.Println("Error encoding JSON data:", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		fmt.Println("Error writing file:", err)
+	}
 }
 
 func WriteUsersToFile(filePath string, users map[string]string) {

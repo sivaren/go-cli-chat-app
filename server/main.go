@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sivaren/go-cli-chat-app/auth"
@@ -78,6 +79,7 @@ func handleMessage() {
 
 		connection := chatRoomMessage.Connection
 		cMessage := chatRoomMessage.Message
+		cMessage.Timestamp = time.Now()
 
 		messages = append(messages, cMessage)
 		database.WriteMessagesToFile(messagesFilePath, messages)
@@ -85,8 +87,9 @@ func handleMessage() {
 		var sMessage models.Message
 		sMessage.Username = cMessage.Username
 		sMessage.Type = cMessage.Type
+		sMessage.Timestamp = cMessage.Timestamp
 
-		if cMessage.Type == "Login" {
+		if cMessage.Type == "LOGIN" {
 			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
 			if isAuth {
 				sMessage.Text = "Login successful!"
@@ -111,7 +114,7 @@ func handleMessage() {
 				connection.Close()
 				delete(sockConnections, connection)
 			}
-		} else if cMessage.Type == "Register" {
+		} else if cMessage.Type == "REGISTER" {
 			users[cMessage.Username] = cMessage.Text
 			database.WriteUsersToFile(usersFilePath, users)
 

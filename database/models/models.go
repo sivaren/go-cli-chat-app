@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type ChatRoom struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
@@ -8,7 +10,9 @@ type ChatRoom struct {
 }
 
 type Message struct {
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
+	Username  string    `json:"username"`
+	Receiver  string    `json:"receiver"`
+	Text      string    `json:"text"`
+	Type      string    `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
 }
