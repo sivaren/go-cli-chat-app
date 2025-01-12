@@ -82,6 +82,6 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
     </tr>
     <tr>
       <td>Docker</td>
-      <td>Not Implemented</td>
+      <td>Implemented</td>
     </tr>
 </table>
