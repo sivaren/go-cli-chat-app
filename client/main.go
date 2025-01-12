@@ -14,27 +14,32 @@ import (
 	"github.com/sivaren/go-cli-chat-app/database/models"
 )
 
+// interface for websocket connnection reading process
 type ConnectionReader interface {
 	ReadJSON(v interface{}) error
 }
 
+// interface for websocket connnection writing process
 type ConnectionWriter interface {
 	WriteJSON(v interface{}) error
 	Close() error
 }
 
+// interface for input scanner
 type Scanner interface {
 	Scan() bool
 	Text() string
 }
 
+// declare menu option for user input
 var menuOption string
 
 func main() {
-	var username string        // declare username given by user
-	var password string        // declare username given by user
-	var scanner *bufio.Scanner // declare scanner to read user input
-	scanner = bufio.NewScanner(os.Stdin)
+	var username string // declare username given by user
+	var password string // declare username given by user
+
+	// input scanner initialization
+	var scanner *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 	// provider custom address and port CLI
 	server := flag.String("server", "localhost:8080", "server network address")
@@ -47,7 +52,7 @@ func main() {
 	}
 
 	// connecting to the server
-	fmt.Println("[>] Connecting to the server...")
+	fmt.Printf("[>] Connecting to the server @%s.\n", *server)
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL.String(), nil)
 	if err != nil {
 		log.Fatal("Connection error:", err)
@@ -63,8 +68,7 @@ func main() {
 	scanner.Scan()
 	menuOption = scanner.Text()
 
-	if menuOption == "1" {
-		// login
+	if menuOption == "1" { // user login
 		fmt.Print("[>][INPUT] Username: ")
 		scanner.Scan()
 		username = scanner.Text()
@@ -79,8 +83,7 @@ func main() {
 			Type:     "LOGIN",
 		}
 		conn.WriteJSON(cMessage)
-	} else {
-		// register
+	} else if menuOption == "2" { // user registration
 		fmt.Print("[>][INPUT] Username: ")
 		scanner.Scan()
 		username = scanner.Text()
@@ -88,26 +91,36 @@ func main() {
 		scanner.Scan()
 		password = scanner.Text()
 
+		// hashing user's password
 		hashedPassword, _ := auth.HashPassword(password)
 
-		// send user validation to server
+		// send user registration to server
 		cMessage := models.Message{
 			Username: username,
 			Text:     hashedPassword,
 			Type:     "REGISTER",
 		}
 		conn.WriteJSON(cMessage)
+	} else {
+		fmt.Println("[>][ERROR] There's no such option, closing program.")
+		os.Exit(0)
 	}
 
-	// app interface
-	// fmt.Printf("Welcome to Chat App %s!\n", username)
-	// fmt.Printf("Connecting to server @ %s\n", *server)
+	// welcoming app interface
+	fmt.Printf("[>] Welcome to CLI Chat App @%s!\n", username)
+	fmt.Println("[>] 1. Type 'dm@<username>:<your-message>' to send a DM")
+	fmt.Println("[>] 2. Type 'exit' to close the program")
 
+	// handling incoming message concurrently
 	go handleReceiveMessage(conn)
+
+	// handling send message to the server
 	handleSendMessage(conn, scanner, username)
 }
 
+// handling incoming message concurrently
 func handleReceiveMessage(conn ConnectionReader) {
+	// infinite loop to listen messages from server
 	for {
 		var sMessage models.Message
 
@@ -131,10 +144,12 @@ func handleReceiveMessage(conn ConnectionReader) {
 	}
 }
 
+// handling send message to the server
 func handleSendMessage(conn ConnectionWriter, scanner Scanner, username string) {
 	var cMessage models.Message
-	cMessage.Username = username
+	cMessage.Username = username // set message's username
 
+	// infinite loop to get user input (to send message to the server)
 	for {
 		if scanner.Scan() {
 			cMessage.Text = scanner.Text()
@@ -151,13 +166,14 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, username string) 
 
 			parsedInput := strings.Split(cMessage.Text, "@")
 			if len(parsedInput) > 1 { // sending DM to @<username>
+				// parsing to get receiver's username and text message
 				parsedUserText := strings.Split(parsedInput[1], ":")
-				receiver := parsedUserText[0]
-				text := parsedUserText[1]
+				receiver := parsedUserText[0] // get receiver's username'
+				text := parsedUserText[1]     // get text message
 
-				cMessage.Receiver = receiver
-				cMessage.Text = text
-				cMessage.Type = "DM"
+				cMessage.Receiver = receiver // set message's receiver (using @username)
+				cMessage.Text = text         // set message's text
+				cMessage.Type = "DM"         // set message's type' to 'DM'
 
 				fmt.Printf("[DM][to:@%s] %s\n", receiver, text)
 				err := conn.WriteJSON(cMessage)
@@ -167,8 +183,8 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, username string) 
 				}
 			} else {
 				cMessage.Type = "ROOM_CHAT"
+
 				fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
-	
 				err := conn.WriteJSON(cMessage)
 				if err != nil {
 					fmt.Println("[ERROR] Sending message, closing connection.", err)

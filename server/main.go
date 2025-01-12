@@ -13,8 +13,10 @@ import (
 	"github.com/sivaren/go-cli-chat-app/auth"
 	"github.com/sivaren/go-cli-chat-app/database"
 	"github.com/sivaren/go-cli-chat-app/database/models"
+	"github.com/sivaren/go-cli-chat-app/server/controllers"
 )
 
+// declare struct for chat room channel
 type ChatRoomMessage struct {
 	Connection *websocket.Conn
 	Message    models.Message
@@ -29,18 +31,47 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// declare mapping(connection => bool) to track open connection
+// declare mapping(connection => int) to track open connection
 var sockConnections = make(map[*websocket.Conn]int)
-var sockConnUsernameBased = make(map[string]*websocket.Conn)  // for DM purpose 
+var sockConnUsernameBased = make(map[string]*websocket.Conn) // for sending DM purpose
 
 // declare channel (chat room) to digest messages concurrently
 var chatRoom = make(chan ChatRoomMessage)
 
-// declare variables for database
+// declare variables for database (users and messages)
 var users map[string]string
 var messages []models.Message
 var usersFilePath string
 var messagesFilePath string
+
+func main() {
+	// provide custom port for CLI
+	port := flag.String("port", ":8080", "server open port")
+	flag.Parse()
+
+	// endpoint for WebSocket connections
+	http.HandleFunc("/ws", handleConnections)
+
+	// handle incoming messages concurrently
+	go handleMessage()
+
+	// get current working directory
+	cwd, errCWD := os.Getwd()
+	if errCWD != nil {
+		fmt.Println("Error getting CWD: ", errCWD)
+	}
+
+	// laoding users and messages data
+	usersFilePath = filepath.Join(cwd, "database", "data", "users.json")
+	messagesFilePath = filepath.Join(cwd, "database", "data", "messages.json")
+	users = database.ReadUsersFromFile(usersFilePath)
+	messages = database.ReadMessagesFromFile(messagesFilePath)
+
+	fmt.Println("WebSocket server started on port", *port)
+	if err := http.ListenAndServe(*port, nil); err != nil {
+		log.Fatal("Error starting server:", err)
+	}
+}
 
 // handle websocket connection
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -56,8 +87,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	sockConnections[conn] = len(sockConnections) + 1
 	fmt.Printf("[ID=%v][HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn], sockConnections[conn])
 
+	// infinite loop to read message from client
 	for {
-		// read message from client
 		var cMessage models.Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
@@ -66,7 +97,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// send message to the chat room to be handled concurrently
+		// send message to the chat room (channel) to be handled concurrently
 		chatRoom <- ChatRoomMessage{
 			Connection: conn,
 			Message:    cMessage,
@@ -76,161 +107,78 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 func handleMessage() {
 	for {
+		// incoming data from channel chatRoom{ *websocket.Conn, models.Message }
 		chatRoomMessage := <-chatRoom
 
-		connection := chatRoomMessage.Connection
-		cMessage := chatRoomMessage.Message
-		cMessage.Timestamp = time.Now()
+		// unpack incoming chat room message
+		connection := chatRoomMessage.Connection // get origin connection
+		cMessage := chatRoomMessage.Message      // get client message
+		cMessage.Timestamp = time.Now()          // add timestampp to client message
 
+		// write new message to database
 		messages = append(messages, cMessage)
 		database.WriteMessagesToFile(messagesFilePath, messages)
 
+		// declare message from server to be sent
 		var sMessage models.Message
-		sMessage.Username = cMessage.Username
-		sMessage.Type = cMessage.Type
-		sMessage.Timestamp = time.Now()
+		sMessage.Username = cMessage.Username // add username to server's message
+		sMessage.Type = cMessage.Type         // add type to server's message
+		sMessage.Timestamp = time.Now()       // add timestamp to server's message
 
 		if cMessage.Type == "LOGIN" {
+			// validate user's password
 			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
-			if isAuth {
+			if isAuth { // user authenticated
 				// add connection based on username
 				sockConnUsernameBased[cMessage.Username] = connection
+				controllers.LoginSuccess(&cMessage, &sMessage, connection, sockConnections)
 
-				sMessage.Text = "Login successful!"
-				fmt.Printf("[ID=%v][LOGIN] @%s successful!\n", sockConnections[connection], cMessage.Username)
-
-				err := connection.WriteJSON(sMessage)
-				if err != nil {
-					fmt.Println("[ERROR] Sending message, closing connection.", err)
-					connection.Close()
-					delete(sockConnections, connection)
-				}
-
-				// broadcast to room chat user has joined
+				// broadcast to room chat that new user has joined
 				broadcastMsg := models.Message{
 					Text:      fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
 					Type:      "BROADCAST",
 					Timestamp: time.Now(),
 				}
-				sendBroadcast(connection, broadcastMsg)
-			} else {
-				sMessage.Text = "Login invalid!"
-				fmt.Printf("[LOGIN] @%s invalid!\n", cMessage.Username)
-
-				err := connection.WriteJSON(sMessage)
-				if err != nil {
-					fmt.Println("[ERROR] Sending message, closing connection.", err)
-					connection.Close()
-					delete(sockConnections, connection)
-				}
-				connection.Close()
-				delete(sockConnections, connection)
+				controllers.SendBroadcast(sockConnections, connection, broadcastMsg)
+			} else { // failed user authentication
+				// processing invalid user login
+				controllers.LoginFailed(&cMessage, &sMessage, connection, sockConnections)
 			}
 		} else if cMessage.Type == "REGISTER" {
 			// add connection based on username
 			sockConnUsernameBased[cMessage.Username] = connection
 
+			// write new user to database
 			users[cMessage.Username] = cMessage.Text
 			database.WriteUsersToFile(usersFilePath, users)
 
-			sMessage.Text = "Account registered!"
-			fmt.Printf("[ID=%v][REGISTER] @%s account registered!\n", sockConnections[connection], cMessage.Username)
+			controllers.UserRegistration(&cMessage, &sMessage, connection, sockConnections)
 
-			err := connection.WriteJSON(sMessage)
-			if err != nil {
-				fmt.Println("[ERROR] Sending message, closing connection.", err)
-				connection.Close()
-				delete(sockConnections, connection)
-			}
-
-			// broadcast to room chat user has joined
+			// broadcast to room chat that new user has joined
 			broadcastMsg := models.Message{
 				Text:      fmt.Sprintf("@%s has joined the chat!", cMessage.Username),
 				Type:      "BROADCAST",
 				Timestamp: time.Now(),
 			}
-			sendBroadcast(connection, broadcastMsg)
+			controllers.SendBroadcast(sockConnections, connection, broadcastMsg)
 		} else if cMessage.Type == "ROOM_CHAT" {
 			fmt.Printf("[ID=%v][CH][@%s] %s\n", sockConnections[connection], cMessage.Username, cMessage.Text)
 
 			// broadcast message to room chat
-			sendBroadcast(connection, cMessage)
+			controllers.SendBroadcast(sockConnections, connection, cMessage)
 		} else if cMessage.Type == "DM" {
-			fmt.Printf("[ID=%v][DM][from:@%s][to:@%s] %s\n", sockConnections[connection], cMessage.Username, cMessage.Receiver, cMessage.Text)
-
-			receiverConn := sockConnUsernameBased[cMessage.Receiver]
-			sMessage.Receiver = cMessage.Receiver
-			sMessage.Text = cMessage.Text
-
-			err := receiverConn.WriteJSON(sMessage)
-			if err != nil {
-				fmt.Println("[ERROR] Sending message, closing connection.", err)
-				receiverConn.Close()
-				delete(sockConnections, receiverConn)
-				delete(sockConnUsernameBased, cMessage.Receiver)
-			}
+			// sending DM from @<username> to @<receiver>
+			controllers.SendDM(&cMessage, &sMessage, connection, sockConnections, sockConnUsernameBased)
 		} else if cMessage.Type == "EXIT" {
-			fmt.Printf("[ID=%v][CH] @%s Leaving chat room.\n", sockConnections[connection], cMessage.Username)
-			connection.Close()
-			delete(sockConnections, connection)
+			controllers.ExitProgram(&cMessage, connection, sockConnections, sockConnUsernameBased)
 
-			// broadcast message to room chat
+			// broadcast message to room chat that someone has left
 			broadcastMsg := models.Message{
 				Text:      fmt.Sprintf("@%s has left the chat!", cMessage.Username),
 				Type:      "BROADCAST",
 				Timestamp: time.Now(),
 			}
-			sendBroadcast(connection, broadcastMsg)
+			controllers.SendBroadcast(sockConnections, connection, broadcastMsg)
 		}
-	}
-}
-
-func sendBroadcast(connection *websocket.Conn, message models.Message) {
-	if message.Type == "ROOM_CHAT" {
-		for conn := range sockConnections {
-			if conn != connection {
-				err := conn.WriteJSON(message)
-				if err != nil {
-					fmt.Println("[ERROR] Sending message, closing connection.", err)
-					conn.Close()
-					delete(sockConnections, conn)
-				}
-			}
-		}
-	} else {
-		for conn := range sockConnections {
-			err := conn.WriteJSON(message)
-			if err != nil {
-				fmt.Println("[ERROR] Sending message, closing connection.", err)
-				conn.Close()
-				delete(sockConnections, conn)
-			}
-		}
-	}
-}
-
-func main() {
-	// provide custom port for CLI
-	port := flag.String("port", ":8080", "server open port")
-	flag.Parse()
-
-	http.HandleFunc("/ws", handleConnections) // endpoint for WebSocket connections
-
-	go handleMessage() // handle incoming messages concurrently
-
-	// loading data
-	cwd, errCWD := os.Getwd()
-	if errCWD != nil {
-		fmt.Println("Error getting CWD: ", errCWD)
-	}
-	usersFilePath = filepath.Join(cwd, "database", "data", "users.json")
-	messagesFilePath = filepath.Join(cwd, "database", "data", "messages.json")
-	users = database.ReadUsersFromFile(usersFilePath)
-	messages = database.ReadMessagesFromFile(messagesFilePath)
-
-	fmt.Println("WebSocket server started on port", *port)
-
-	if err := http.ListenAndServe(*port, nil); err != nil {
-		log.Fatal("Error starting server:", err)
 	}
 }
