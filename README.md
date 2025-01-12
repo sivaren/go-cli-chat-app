@@ -8,6 +8,8 @@ Go Chat CLI-based Application
 * [Requirements](#requirements)
 * [Prerequisites](#prerequisites)
 * [Run Program](#run-program)
+    * [Using Command-line](#using-command-line)
+    * [Using Docker](#using-docker)
 * [Project Status](#project-status)
 * [Functionality](#functionality)
 
@@ -28,20 +30,36 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
 ```
 
 ## Run Program
-> **To first setup this project run** </br>
+### Using Command-line
+* Open `cmd` on this folder and install dependencies
 
-**Open `cmd` on this folder**
-```
-  go get github.com/gorilla/websocket
-```
-**Run Server**
-```
+  ```
+  go mod tidy
+  go mod download
+  ```
+* Run websocket `server`
+  ```
   go run ./server
-```
-**Run Client**
-```
+  ```
+* Open new terminal to run a `client`
+  ```
   go run ./client
-```
+  ```
+
+### Using Docker
+* Open `cmd` on this folder and `build` Docker image
+
+  ```
+  docker build -t go-cli-chat-app .
+  ```
+* Run websocket `server`
+  ```
+  docker run -p 8080:8080 go-cli-chat-app
+  ```
+* Open new terminal to run a `client`
+  ```
+  go run ./client
+  ```
 
 ## Project Status
 > **Project is: _in progress_**
