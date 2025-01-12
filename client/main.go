@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/sivaren/go-cli-chat-app/auth"
@@ -124,6 +125,8 @@ func handleReceiveMessage(conn ConnectionReader) {
 			fmt.Printf("[CH][@%s] %s\n", sMessage.Username, sMessage.Text)
 		} else if sMessage.Type == "BROADCAST" {
 			fmt.Printf("[SERVER] %s\n", sMessage.Text)
+		} else if sMessage.Type == "DM" {
+			fmt.Printf("[DM][from:@%s] %s\n", sMessage.Username, sMessage.Text)
 		}
 	}
 }
@@ -146,13 +149,31 @@ func handleSendMessage(conn ConnectionWriter, scanner Scanner, username string) 
 				os.Exit(0)
 			}
 
-			cMessage.Type = "ROOM_CHAT"
-			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
+			parsedInput := strings.Split(cMessage.Text, "@")
+			if len(parsedInput) > 1 { // sending DM to @<username>
+				parsedUserText := strings.Split(parsedInput[1], ":")
+				receiver := parsedUserText[0]
+				text := parsedUserText[1]
 
-			err := conn.WriteJSON(cMessage)
-			if err != nil {
-				fmt.Println("[ERROR] Sending message, clossing connection.", err)
-				break
+				cMessage.Receiver = receiver
+				cMessage.Text = text
+				cMessage.Type = "DM"
+
+				fmt.Printf("[DM][to:@%s] %s\n", receiver, text)
+				err := conn.WriteJSON(cMessage)
+				if err != nil {
+					fmt.Println("[ERROR] Sending message, closing connection.", err)
+					break
+				}
+			} else {
+				cMessage.Type = "ROOM_CHAT"
+				fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
+	
+				err := conn.WriteJSON(cMessage)
+				if err != nil {
+					fmt.Println("[ERROR] Sending message, closing connection.", err)
+					break
+				}
 			}
 		}
 	}

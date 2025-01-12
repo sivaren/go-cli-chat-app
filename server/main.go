@@ -31,6 +31,7 @@ var upgrader = websocket.Upgrader{
 
 // declare mapping(connection => bool) to track open connection
 var sockConnections = make(map[*websocket.Conn]int)
+var sockConnUsernameBased = make(map[string]*websocket.Conn)  // for DM purpose 
 
 // declare channel (chat room) to digest messages concurrently
 var chatRoom = make(chan ChatRoomMessage)
@@ -92,6 +93,9 @@ func handleMessage() {
 		if cMessage.Type == "LOGIN" {
 			isAuth := auth.IsPasswordValid(users[cMessage.Username], cMessage.Text)
 			if isAuth {
+				// add connection based on username
+				sockConnUsernameBased[cMessage.Username] = connection
+
 				sMessage.Text = "Login successful!"
 				fmt.Printf("[ID=%v][LOGIN] @%s successful!\n", sockConnections[connection], cMessage.Username)
 
@@ -123,11 +127,14 @@ func handleMessage() {
 				delete(sockConnections, connection)
 			}
 		} else if cMessage.Type == "REGISTER" {
+			// add connection based on username
+			sockConnUsernameBased[cMessage.Username] = connection
+
 			users[cMessage.Username] = cMessage.Text
 			database.WriteUsersToFile(usersFilePath, users)
 
 			sMessage.Text = "Account registered!"
-			fmt.Printf("[ID=%v][REGISTER] Account @%s registered!\n", sockConnections[connection], cMessage.Username)
+			fmt.Printf("[ID=%v][REGISTER] @%s account registered!\n", sockConnections[connection], cMessage.Username)
 
 			err := connection.WriteJSON(sMessage)
 			if err != nil {
@@ -148,6 +155,20 @@ func handleMessage() {
 
 			// broadcast message to room chat
 			sendBroadcast(connection, cMessage)
+		} else if cMessage.Type == "DM" {
+			fmt.Printf("[ID=%v][DM][from:@%s][to:@%s] %s\n", sockConnections[connection], cMessage.Username, cMessage.Receiver, cMessage.Text)
+
+			receiverConn := sockConnUsernameBased[cMessage.Receiver]
+			sMessage.Receiver = cMessage.Receiver
+			sMessage.Text = cMessage.Text
+
+			err := receiverConn.WriteJSON(sMessage)
+			if err != nil {
+				fmt.Println("[ERROR] Sending message, closing connection.", err)
+				receiverConn.Close()
+				delete(sockConnections, receiverConn)
+				delete(sockConnUsernameBased, cMessage.Receiver)
+			}
 		} else if cMessage.Type == "EXIT" {
 			fmt.Printf("[ID=%v][CH] @%s Leaving chat room.\n", sockConnections[connection], cMessage.Username)
 			connection.Close()
