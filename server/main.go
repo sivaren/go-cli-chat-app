@@ -15,10 +15,14 @@ import (
 
 // declare Message struct
 type Message struct {
-	Connection *websocket.Conn `json:"connection"`
 	Username   string          `json:"username"`
 	Text       string          `json:"text"`
 	Type       string          `json:"type"`
+}
+
+type ChatRoomMessage struct {
+	Connection *websocket.Conn
+	Message Message
 }
 
 // initialize websocket upgrader : upgrade http to websocket connection
@@ -34,11 +38,12 @@ var upgrader = websocket.Upgrader{
 var sockConnections = make(map[*websocket.Conn]int)
 
 // declare channel (chat room) to digest messages concurrently
-var chatRoom = make(chan Message)
+var chatRoom = make(chan ChatRoomMessage)
 
 // declare variables for database
 var users map[string]string
 var usersFilePath string
+var messages []Message 
 
 // handle websocket connection
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +58,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// new connection established
 	sockConnections[conn] = len(sockConnections) + 1
 	fmt.Printf("[HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn])
-
+	
 	for {
 		// read message from client
 		var cMessage Message
@@ -65,14 +70,20 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// send message to the chat room to be handled concurrently
-		cMessage.Connection = conn
-		chatRoom <- cMessage
+		chatRoom <- ChatRoomMessage{
+			Connection: conn,
+			Message: cMessage,
+		}
 	}
 }
 
 func handleMessage() {
 	for {
-		cMessage := <-chatRoom
+		chatRoomMessage := <-chatRoom
+
+		connection := chatRoomMessage.Connection
+		cMessage := chatRoomMessage.Message
+		
 
 		var sMessage Message
 		sMessage.Username = cMessage.Username
@@ -84,24 +95,24 @@ func handleMessage() {
 				sMessage.Text = "Login successful!"
 				fmt.Printf("[LOGIN] @%s successful!\n", cMessage.Username)
 
-				err := cMessage.Connection.WriteJSON(sMessage)
+				err := connection.WriteJSON(sMessage)
 				if err != nil {
 					fmt.Println("[ERROR] Sending message, closing connection.", err)
-					cMessage.Connection.Close()
-					delete(sockConnections, cMessage.Connection)
+					connection.Close()
+					delete(sockConnections, connection)
 				}
 			} else {
 				sMessage.Text = "Login invalid!"
 				fmt.Printf("[LOGIN] @%s invalid!\n", cMessage.Username)
 
-				err := cMessage.Connection.WriteJSON(sMessage)
+				err := connection.WriteJSON(sMessage)
 				if err != nil {
 					fmt.Println("[ERROR] Sending message, closing connection.", err)
-					cMessage.Connection.Close()
-					delete(sockConnections, cMessage.Connection)
+					connection.Close()
+					delete(sockConnections, connection)
 				}
-				cMessage.Connection.Close()
-				delete(sockConnections, cMessage.Connection)
+				connection.Close()
+				delete(sockConnections, connection)
 			}
 		} else if cMessage.Type == "Register" {
 			users[cMessage.Username] = cMessage.Text
@@ -110,17 +121,17 @@ func handleMessage() {
 			sMessage.Text = "Account registered!"
 			fmt.Printf("[REGISTER] Account @%s registered!\n", cMessage.Username)
 
-			err := cMessage.Connection.WriteJSON(sMessage)
+			err := connection.WriteJSON(sMessage)
 			if err != nil {
 				fmt.Println("[ERROR] Sending message, closing connection.", err)
-				cMessage.Connection.Close()
-				delete(sockConnections, cMessage.Connection)
+				connection.Close()
+				delete(sockConnections, connection)
 			}
 		} else {
 			fmt.Printf("[CH][@%s] %s\n", cMessage.Username, cMessage.Text)
 
 			for conn := range sockConnections {
-				if conn != cMessage.Connection {
+				if conn != connection {
 					err := conn.WriteJSON(cMessage)
 					if err != nil {
 						fmt.Println("[ERROR] Sending message, closing connection.", err)
