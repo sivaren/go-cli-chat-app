@@ -73,7 +73,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
     </tr>
     <tr>
       <td>Store Messages</td>
-      <td>Not Implemented</td>
+      <td>Implemented</td>
     </tr>
     <tr>
       <td>Error Handling</td>
