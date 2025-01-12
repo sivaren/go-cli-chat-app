@@ -11,18 +11,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sivaren/go-cli-chat-app/auth"
 	"github.com/sivaren/go-cli-chat-app/database"
+	"github.com/sivaren/go-cli-chat-app/database/models"
 )
-
-// declare Message struct
-type Message struct {
-	Username   string          `json:"username"`
-	Text       string          `json:"text"`
-	Type       string          `json:"type"`
-}
 
 type ChatRoomMessage struct {
 	Connection *websocket.Conn
-	Message Message
+	Message    models.Message
 }
 
 // initialize websocket upgrader : upgrade http to websocket connection
@@ -42,8 +36,9 @@ var chatRoom = make(chan ChatRoomMessage)
 
 // declare variables for database
 var users map[string]string
+var messages []models.Message
 var usersFilePath string
-var messages []Message 
+var messagesFilePath string
 
 // handle websocket connection
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -58,10 +53,10 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// new connection established
 	sockConnections[conn] = len(sockConnections) + 1
 	fmt.Printf("[HANDSHAKE] New connection with ID=%v established!\n", sockConnections[conn])
-	
+
 	for {
 		// read message from client
-		var cMessage Message
+		var cMessage models.Message
 		err := conn.ReadJSON(&cMessage)
 		if err != nil {
 			fmt.Printf("[CLOSING] Client ID=%v closed, closing connection.\n", sockConnections[conn])
@@ -72,7 +67,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		// send message to the chat room to be handled concurrently
 		chatRoom <- ChatRoomMessage{
 			Connection: conn,
-			Message: cMessage,
+			Message:    cMessage,
 		}
 	}
 }
@@ -83,9 +78,11 @@ func handleMessage() {
 
 		connection := chatRoomMessage.Connection
 		cMessage := chatRoomMessage.Message
-		
 
-		var sMessage Message
+		messages = append(messages, cMessage)
+		database.WriteMessagesToFile(messagesFilePath, messages)
+
+		var sMessage models.Message
 		sMessage.Username = cMessage.Username
 		sMessage.Type = cMessage.Type
 
@@ -159,7 +156,9 @@ func main() {
 		fmt.Println("Error getting CWD: ", errCWD)
 	}
 	usersFilePath = filepath.Join(cwd, "database", "data", "users.json")
+	messagesFilePath = filepath.Join(cwd, "database", "data", "messages.json")
 	users = database.ReadUsersFromFile(usersFilePath)
+	messages = database.ReadMessagesFromFile(messagesFilePath)
 
 	fmt.Println("WebSocket server started on port", *port)
 

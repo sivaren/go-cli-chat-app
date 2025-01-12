@@ -5,7 +5,43 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/sivaren/go-cli-chat-app/database/models"
 )
+
+func ReadMessagesFromFile(filePath string) []models.Message {
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make([]models.Message, 0)
+		}
+		fmt.Println("Error opening file:", err)
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+
+	var messages []models.Message
+	if err := json.Unmarshal(data, &messages); err != nil {
+		fmt.Println("Error parsing JSON data:", err)
+	}
+
+	return messages
+}
+
+func WriteMessagesToFile(filePath string, messages []models.Message) {
+	data, err := json.MarshalIndent(messages, "", "  ")
+	if err != nil {
+		fmt.Println("Error encoding JSON data:", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		fmt.Println("Error writing file:", err)
+	}
+}
 
 func ReadUsersFromFile(filePath string) map[string]string {
 	file, err := os.Open(filePath)
