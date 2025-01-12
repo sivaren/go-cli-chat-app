@@ -31,7 +31,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
 
 ## Run Program
 ### Using Command-line
-* Open `cmd` on this folder and install dependencies
+* Open `cmd` on this folder and download dependencies
 
   ```
   go mod tidy
@@ -62,7 +62,7 @@ $ git clone https://github.com/sivaren/go-cli-chat-app.git
   ```
 
 ## Project Status
-> **Project is: _in progress_**
+> **Project is: _DO_**
 
 ## Functionality
 <table>
